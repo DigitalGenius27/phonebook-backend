@@ -48,14 +48,15 @@ app.get('/api/persons/:id', (request, response) => {
   }
 })
 
-app.delete('/api/persons/:id', (request, response) => {
+app.delete('/api/persons/:id', (request, response, next) => {
   Person.findByIdAndDelete(request.params.id)
     .then(() => {
       response.status(204).end()
     })
+    .catch(error => next(error))
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const body = request.body
 
   if (!body.name || !body.number) {
@@ -64,25 +65,29 @@ app.post('/api/persons', (request, response) => {
     })
   }
 
-  const nameExists = persons.some(
-    person => person.name === body.name
-  )
-
-  if (nameExists) {
-    return response.status(400).json({
-      error: 'name must be unique'
-    })
-  }
-
-  const person = {
-    id: Math.floor(Math.random() * 1000000),
+  const person = new Person({
     name: body.name,
     number: body.number
+  })
+
+  person.save()
+    .then(savedPerson => {
+      response.status(201).json(savedPerson)
+    })
+    .catch(error => next(error))
+})
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
   }
 
-  persons = persons.concat(person)
-  response.status(201).json(person)
-})
+  next(error)
+}
+
+app.use(errorHandler)
 
 
 connectToDatabase(MONGODB_URI).then(() => {
